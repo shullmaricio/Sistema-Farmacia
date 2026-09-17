@@ -23,7 +23,7 @@ export default function Layout() {
       {/* Escritorio: barra lateral */}
       <aside className="hidden w-60 shrink-0 border-r border-borde bg-white lg:flex lg:flex-col">
         <div className="border-b border-borde px-5 py-5">
-          <p className="text-base font-semibold leading-tight">Sistema de Farmacia</p>
+          <p className="text-base font-semibold leading-tight">CreaMed</p>
           <p className="mt-0.5 text-sm text-tinta-suave">Funciona sin internet</p>
         </div>
         <nav className="flex-1 space-y-1 p-3">
