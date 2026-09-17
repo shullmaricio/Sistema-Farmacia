@@ -23,6 +23,25 @@ db.version(1).stores({
   config: 'clave',
 })
 
+// Version 2: agrega el empaque de cada producto (unidad base, si se puede
+// fraccionar, y las formas de venta extra como Blister o Caja con su propio
+// precio y codigo de barras). No cambia ningun indice, asi que no hace falta
+// tocar los lotes ni el resto de las tablas: solo completa estos 3 campos
+// nuevos en los productos que ya existian, con valores que no cambian nada
+// de como se veian ni se vendian hasta ahora.
+db.version(2)
+  .stores({
+    productos:
+      '++id, nombreComercial, principioActivo, codigoBarras, categoriaId, esControlado, activo',
+  })
+  .upgrade(async (tx) => {
+    await tx.table('productos').toCollection().modify((producto) => {
+      if (producto.unidadBase === undefined) producto.unidadBase = 'Unidad'
+      if (producto.permiteFraccionar === undefined) producto.permiteFraccionar = true
+      if (producto.formasVenta === undefined) producto.formasVenta = []
+    })
+  })
+
 // ---------------------------------------------------------------------------
 // Valores por defecto de configuracion
 // ---------------------------------------------------------------------------

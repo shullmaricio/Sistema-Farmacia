@@ -232,8 +232,28 @@ export async function crearProducto(datos) {
     requiereReceta: !!datos.requiereReceta,
     esControlado: datos.esControlado || 'ninguno',
     activo: datos.activo !== false,
+    // Empaque: la unidad mas chica que se vende, y las formas de venta
+    // extra (Blister, Caja...) con su propio precio. Ver src/db/empaque.js
+    unidadBase: limpiarTexto(datos.unidadBase) || 'Unidad',
+    permiteFraccionar: datos.permiteFraccionar !== false,
+    formasVenta: limpiarFormasVenta(datos.formasVenta),
     creadoEn: new Date(),
   })
+}
+
+// Deja las formas de venta con numeros de verdad (no texto) antes de
+// guardar, y descarta cualquier fila que hayan dejado vacia sin querer.
+function limpiarFormasVenta(formasVenta) {
+  return (formasVenta || [])
+    .filter((f) => limpiarTexto(f.etiqueta) && numeroOCero(f.factor) > 1)
+    .map((f) => ({
+      id: f.id,
+      etiqueta: limpiarTexto(f.etiqueta),
+      factor: numeroOCero(f.factor),
+      precio: numeroOCero(f.precio),
+      codigoBarras: limpiarTexto(f.codigoBarras) || '',
+      activa: f.activa !== false,
+    }))
 }
 
 export async function actualizarProducto(id, datos) {
@@ -255,6 +275,9 @@ export async function actualizarProducto(id, datos) {
     proveedorPrincipalId: datos.proveedorPrincipalId ?? null,
     requiereReceta: !!datos.requiereReceta,
     esControlado: datos.esControlado || 'ninguno',
+    unidadBase: limpiarTexto(datos.unidadBase) || 'Unidad',
+    permiteFraccionar: datos.permiteFraccionar !== false,
+    formasVenta: limpiarFormasVenta(datos.formasVenta),
   })
 }
 
