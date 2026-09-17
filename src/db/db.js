@@ -54,6 +54,22 @@ export const TIPOS_MOVIMIENTO = {
   devolucion: 'Devolucion',
 }
 
+// Listas cerradas para los selects de Productos. Se pueden ampliar aqui
+// sin tocar el schema, porque no son campos indexados.
+export const PRESENTACIONES = [
+  'Caja',
+  'Blister',
+  'Frasco',
+  'Frasco ampolla',
+  'Tubo',
+  'Ampolla',
+  'Sobre',
+  'Unidad',
+  'Otro',
+]
+
+export const UNIDADES_MEDIDA = ['mg', 'g', 'ml', 'mcg', 'UI', 'unidad']
+
 // ---------------------------------------------------------------------------
 // Lectura y escritura de configuracion
 // ---------------------------------------------------------------------------
