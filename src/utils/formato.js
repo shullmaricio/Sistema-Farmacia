@@ -67,3 +67,12 @@ export function estadoVencimiento(fechaVenc, config) {
   if (dias <= aviso) return { nivel: 'aviso', dias, texto: `Vence en ${dias} d` }
   return { nivel: 'ok', dias, texto: fecha(fechaVenc) }
 }
+
+// Traduce el nivel de estadoVencimiento() a una clase de insignia (.insignia-*
+// definida en index.css), para no repetir el mismo if/else en cada pantalla.
+export function claseInsigniaVencimiento(nivel) {
+  if (nivel === 'vencido' || nivel === 'critico') return 'insignia-peligro'
+  if (nivel === 'aviso') return 'insignia-aviso'
+  if (nivel === 'sin-fecha') return 'insignia-neutra'
+  return 'insignia-ok'
+}
