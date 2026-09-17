@@ -24,6 +24,15 @@ import {
   crearProveedorRapido,
   crearCategoriaRapida,
 } from '../db/operaciones'
+import {
+  UNIDADES_BASE,
+  formasVentaCompletas,
+  formaVentaPorDefecto,
+  aUnidadesBase,
+  costoUnitarioDesde,
+  formatearStock,
+  revisarFormasVenta,
+} from '../db/empaque'
 import { bs, estadoVencimiento, claseInsigniaVencimiento, aInputFecha } from '../utils/formato'
 import Modal from '../components/Modal'
 
@@ -60,6 +69,9 @@ const PRODUCTO_VACIO = {
   requiereReceta: false,
   esControlado: 'ninguno',
   activo: true,
+  unidadBase: 'Unidad',
+  permiteFraccionar: true,
+  formasVenta: [],
 }
 
 export default function Inventario() {
@@ -231,7 +243,7 @@ export default function Inventario() {
                           : 'insignia-neutra'
                       }
                     >
-                      {stock} und.
+                      {formatearStock(stock, producto)}
                     </span>
                   </td>
                   <td>
@@ -328,6 +340,12 @@ function FormularioProducto({ producto, categorias, proveedores, alGuardar, alCe
 
   async function enviar(e) {
     e.preventDefault()
+    const avisos = revisarFormasVenta(datos)
+    const bloqueante = avisos.find((a) => a.bloquea)
+    if (bloqueante) {
+      toast.error(bloqueante.texto)
+      return
+    }
     setGuardando(true)
     try {
       await alGuardar({
@@ -570,8 +588,187 @@ function FormularioProducto({ producto, categorias, proveedores, alGuardar, alCe
             </label>
           </div>
         </div>
+
+        <SeccionEmpaque
+          precioVenta={datos.precioVenta}
+          unidadBase={datos.unidadBase}
+          permiteFraccionar={datos.permiteFraccionar}
+          formasVenta={datos.formasVenta}
+          onUnidadBase={(v) => cambiar('unidadBase', v)}
+          onPermiteFraccionar={(v) => cambiar('permiteFraccionar', v)}
+          onFormasVenta={(v) => cambiar('formasVenta', v)}
+        />
       </form>
     </Modal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Empaque: la unidad mas chica que se vende, y las formas de venta extra
+// (Blister, Caja, etc), cada una con su propio precio. El precio de venta
+// de arriba (precioVenta) siempre es el precio de la unidad base: eso no
+// cambia. Esto solo agrega formas MAS GRANDES para vender lo mismo.
+// ---------------------------------------------------------------------------
+
+function SeccionEmpaque({
+  precioVenta,
+  unidadBase,
+  permiteFraccionar,
+  formasVenta,
+  onUnidadBase,
+  onPermiteFraccionar,
+  onFormasVenta,
+}) {
+  const productoParaAvisos = { precioVenta, unidadBase, permiteFraccionar, formasVenta }
+  const avisos = revisarFormasVenta(productoParaAvisos)
+
+  const cambiarForma = (id, cambios) =>
+    onFormasVenta(formasVenta.map((f) => (f.id === id ? { ...f, ...cambios } : f)))
+
+  const agregarForma = () =>
+    onFormasVenta([
+      ...formasVenta,
+      {
+        id: `f-${Date.now()}`,
+        etiqueta: '',
+        factor: '',
+        precio: '',
+        codigoBarras: '',
+        activa: true,
+      },
+    ])
+
+  const quitarForma = (id) => onFormasVenta(formasVenta.filter((f) => f.id !== id))
+
+  return (
+    <div className="space-y-3 border-t border-borde pt-4">
+      <div>
+        <h3 className="font-medium">Empaque: como se vende</h3>
+        <p className="text-sm text-tinta-suave">
+          El stock siempre se cuenta en la unidad mas chica. La caja y el blister son solo
+          otra forma de cobrar esa misma cantidad, con su propio precio.
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="etiqueta">La unidad mas chica que vendes</label>
+          <select className="campo" value={unidadBase} onChange={(e) => onUnidadBase(e.target.value)}>
+            {UNIDADES_BASE.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-end">
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-5 w-5 rounded border-borde text-farmacia focus:ring-farmacia"
+              checked={permiteFraccionar !== false}
+              onChange={(e) => onPermiteFraccionar(e.target.checked)}
+            />
+            <span className="text-sm">
+              Se puede vender fraccionado (destildalo para un antibiotico o un jarabe que solo
+              sale en envase cerrado)
+            </span>
+          </label>
+        </div>
+      </div>
+
+      {formasVenta.length > 0 && (
+        <div className="tabla-scroll">
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Se vende como</th>
+                <th>Equivale a</th>
+                <th>Precio (Bs)</th>
+                <th>Codigo de barras</th>
+                <th>Activa</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {formasVenta.map((f) => (
+                <tr key={f.id}>
+                  <td>
+                    <input
+                      className="campo"
+                      placeholder="Ej: Blister, Caja"
+                      value={f.etiqueta}
+                      onChange={(e) => cambiarForma(f.id, { etiqueta: e.target.value })}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="2"
+                      className="campo"
+                      placeholder={unidadBase.toLowerCase() + 's'}
+                      value={f.factor}
+                      onChange={(e) => cambiarForma(f.id, { factor: e.target.value })}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="campo"
+                      value={f.precio}
+                      onChange={(e) => cambiarForma(f.id, { precio: e.target.value })}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="campo"
+                      placeholder="opcional"
+                      value={f.codigoBarras}
+                      onChange={(e) => cambiarForma(f.id, { codigoBarras: e.target.value })}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 rounded border-borde text-farmacia focus:ring-farmacia"
+                      checked={f.activa !== false}
+                      onChange={(e) => cambiarForma(f.id, { activa: e.target.checked })}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn-icono"
+                      title="Quitar"
+                      onClick={() => quitarForma(f.id)}
+                    >
+                      <Ban size={18} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <button type="button" className="btn-secundario" onClick={agregarForma}>
+        <Plus size={18} />
+        Agregar forma de venta (Blister, Caja...)
+      </button>
+
+      {avisos.length > 0 && (
+        <ul className="space-y-1">
+          {avisos.map((a, i) => (
+            <li key={i} className={a.bloquea ? 'text-sm text-peligro' : 'text-sm text-ambar'}>
+              {a.texto}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 
@@ -667,17 +864,24 @@ function ModalLotes({ producto, proveedores, alCerrar }) {
 }
 
 function FormularioLote({ producto, proveedores, alCerrar }) {
+  const formas = formasVentaCompletas(producto)
+  const formaInicial = formaVentaPorDefecto(producto)
+
   const [datos, setDatos] = useState({
     numeroLote: '',
     fechaVencimiento: '',
     fechaIngreso: aInputFecha(new Date()),
-    cantidadInicial: '',
-    costoUnitario: producto.precioCompra ?? '',
+    cantidad: '',
+    formaVentaId: formaInicial?.id || 'unidad',
+    costoDeLaForma: '',
     proveedorId: producto.proveedorPrincipalId || '',
   })
   const [guardando, setGuardando] = useState(false)
 
   const cambiar = (campo, valor) => setDatos((d) => ({ ...d, [campo]: valor }))
+
+  const formaElegida = formas.find((f) => f.id === datos.formaVentaId) || formas[0]
+  const cantidadEnUnidades = aUnidadesBase(datos.cantidad, formaElegida)
 
   async function enviar(e) {
     e.preventDefault()
@@ -688,8 +892,8 @@ function FormularioLote({ producto, proveedores, alCerrar }) {
         numeroLote: datos.numeroLote,
         fechaVencimiento: datos.fechaVencimiento,
         fechaIngreso: datos.fechaIngreso,
-        cantidadInicial: datos.cantidadInicial,
-        costoUnitario: datos.costoUnitario,
+        cantidadInicial: cantidadEnUnidades,
+        costoUnitario: costoUnitarioDesde(datos.costoDeLaForma, formaElegida),
         proveedorId: datos.proveedorId || null,
       })
       toast.success('Lote agregado')
@@ -756,21 +960,48 @@ function FormularioLote({ producto, proveedores, alCerrar }) {
               type="number"
               min="1"
               className="campo"
-              value={datos.cantidadInicial}
-              onChange={(e) => cambiar('cantidadInicial', e.target.value)}
+              value={datos.cantidad}
+              onChange={(e) => cambiar('cantidad', e.target.value)}
               required
             />
           </div>
           <div>
-            <label className="etiqueta">Costo unitario (Bs)</label>
+            <label className="etiqueta">Entra como</label>
+            {formas.length > 1 ? (
+              <select
+                className="campo"
+                value={datos.formaVentaId}
+                onChange={(e) => cambiar('formaVentaId', e.target.value)}
+              >
+                {formas.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.etiqueta}
+                    {f.factor > 1 ? ` (${f.factor} ${producto.unidadBase.toLowerCase()}s)` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="campo bg-papel text-tinta-suave">{formaElegida?.etiqueta}</div>
+            )}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="etiqueta">
+              Costo por {(formaElegida?.etiqueta || 'unidad').toLowerCase()} (Bs)
+            </label>
             <input
               type="number"
               min="0"
               step="0.01"
               className="campo"
-              value={datos.costoUnitario}
-              onChange={(e) => cambiar('costoUnitario', e.target.value)}
+              value={datos.costoDeLaForma}
+              onChange={(e) => cambiar('costoDeLaForma', e.target.value)}
             />
+            {Number(datos.cantidad) > 0 && (
+              <p className="mt-1.5 text-sm text-tinta-suave">
+                Esto va a sumar {cantidadEnUnidades} {producto.unidadBase.toLowerCase()}
+                {cantidadEnUnidades === 1 ? '' : 's'} al stock.
+              </p>
+            )}
           </div>
           <div>
             <label className="etiqueta">Proveedor</label>
