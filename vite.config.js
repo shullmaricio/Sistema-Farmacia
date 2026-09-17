@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'Sistema de Farmacia',
-        short_name: 'Farmacia',
+        name: 'CreaMed',
+        short_name: 'CreaMed',
         description: 'Gestion de inventario, ventas y dispensacion para farmacias',
         lang: 'es',
         start_url: '/',
